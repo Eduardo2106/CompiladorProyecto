@@ -1,0 +1,17 @@
+// Declaración de variables
+int contador = 5;
+float valor_pi = 3.1415;
+
+/* Inicio del ciclo 
+   para validación */
+while (contador > 0) {
+    print contador;
+    contador = contador - 1;
+}
+
+if (contador == 0) {
+    return 1;
+}
+
+// Caracteres para probar errores léxicos
+@ # $
