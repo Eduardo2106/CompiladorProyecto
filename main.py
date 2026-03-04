@@ -10,35 +10,38 @@ from PyQt6.QtGui import QAction, QColor, QTextFormat, QPainter, QIcon, QFont
 from PyQt6.QtCore import Qt, QRect, QSize
 
 # ================= 1. ANALIZADOR LÉXICO =================
-# class AnalizadorLexico:
-#     def __init__(self):
-#         self.specs = [
-#             ('KEYWORD',  r'\b(if|else|while|for|int|float|return|print|void)\b'),
-#             ('NUMBER',   r'\d+(\.\d+)?'),
-#             ('ID',       r'[a-zA-Z_][a-zA-Z0-9_]*'),
-#             ('OP',       r'[+\-*/=<>!]{1,2}'),
-#             ('PUNCT',    r'[()\[\]{};,]'),
-#             ('SKIP',     r'[ \t]+'),
-#             ('NEWLINE',  r'\n'),
-#             ('MISMATCH', r'.'),
-#         ]
-#         self.regex = '|'.join('(?P<%s>%s)' % pair for pair in self.specs)
+"""
+ class AnalizadorLexico:
+     def __init__(self):
+         self.specs = [
+             ('KEYWORD',  r'\b(if|else|while|for|int|float|return|print|void)\b'),
+             ('NUMBER',   r'\d+(\.\d+)?'),
+             ('ID',       r'[a-zA-Z_][a-zA-Z0-9_]*'),
+             ('OP',       r'[+\-*/=<>!]{1,2}'),
+             ('PUNCT',    r'[()\[\]{};,]'),
+             ('SKIP',     r'[ \t]+'),
+             ('NEWLINE',  r'\n'),
+             ('MISMATCH', r'.'),
+         ]
+         self.regex = '|'.join('(?P<%s>%s)' % pair for pair in self.specs)
 
-#     def tokenizar(self, codigo):
-#         tokens, errores = [], []
-#         linea = 1
-#         for mo in re.finditer(self.regex, codigo):
-#             tipo = mo.lastgroup
-#             valor = mo.group()
-#             if tipo == 'NEWLINE': linea += 1
-#             elif tipo == 'SKIP': continue
-#             elif tipo == 'MISMATCH':
-#                 errores.append(f"Línea {linea}: Carácter ilegal '{valor}'")
-#             else:
-#                 tokens.append((linea, tipo, valor))
-#         return tokens, errores
+     def tokenizar(self, codigo):
+         tokens, errores = [], []
+         linea = 1
+         for mo in re.finditer(self.regex, codigo):
+             tipo = mo.lastgroup
+             valor = mo.group()
+             if tipo == 'NEWLINE': linea += 1
+             elif tipo == 'SKIP': continue
+             elif tipo == 'MISMATCH':
+                 errores.append(f"Línea {linea}: Carácter ilegal '{valor}'")
+             else:
+                 tokens.append((linea, tipo, valor))
+         return tokens, errores
+"""
 
 # ================= 2. COMPONENTES DE INTERFAZ =================
+"""
 class LineNumberArea(QWidget):
     def __init__(self, editor):
         super().__init__(editor)
@@ -91,6 +94,7 @@ class CodeEditor(QPlainTextEdit):
             top = bottom
             bottom = top + int(self.blockBoundingRect(block).height())
             block_number += 1
+"""
 
 # ================= 3. VENTANA PRINCIPAL (IDE) =================
 class CompiladorIDE(QMainWindow):
@@ -143,7 +147,8 @@ class CompiladorIDE(QMainWindow):
         splitter_h = QSplitter(Qt.Orientation.Horizontal)
 
         # Editor de texto
-        self.editor = CodeEditor()
+        #self.editor = CodeEditor()
+        self.editor = QPlainTextEdit() #esta linea solo funciona para activar la numeracion en las lineas
         self.editor.cursorPositionChanged.connect(self.actualizar_status)
         splitter_h.addWidget(self.editor)
 
@@ -184,47 +189,49 @@ class CompiladorIDE(QMainWindow):
         self.lbl_cursor.setText(f"Col: {col}")
 
     
-    # --- LÓGICA DE FASES (AQUÍ ESTÁ LA CONEXIÓN) ---
-    # def ejecutar_fase(self, fase):
-    #     codigo = self.editor.toPlainText()
-    #     if not codigo.strip(): return
+    # ================= LÓGICA DE FASES =================
+    """
+    def ejecutar_fase(self, fase):
+        codigo = self.editor.toPlainText()
+        if not codigo.strip(): return
         
-    #     # REQUERIMIENTO 4: Guardar archivo para el compilador autónomo
-    #     with open("temp_code.src", "w") as f: f.write(codigo)
+        # REQUERIMIENTO 4: Guardar archivo para el compilador autónomo
+        with open("temp_code.src", "w") as f: f.write(codigo)
 
-    #     if fase == "lex":
-    #         self.tabs_res.setCurrentIndex(0) # Pestaña Léxico
-    #         tokens, errores = self.lexer.tokenizar(codigo)
-    #         res = f"{'Línea':<8}{'Tipo':<15}{'Valor':<15}\n" + "-"*40 + "\n"
-    #         for l, t, v in tokens: res += f"{l:<8}{t:<15}{v:<15}\n"
-    #         self.txt_lex.setText(res)
-    #         self.err_lex.setText("\n".join(errores) if errores else "Sin errores léxicos.")
+        if fase == "lex":
+            self.tabs_res.setCurrentIndex(0) # Pestaña Léxico
+            tokens, errores = self.lexer.tokenizar(codigo)
+            res = f"{'Línea':<8}{'Tipo':<15}{'Valor':<15}\n" + "-"*40 + "\n"
+            for l, t, v in tokens: res += f"{l:<8}{t:<15}{v:<15}\n"
+            self.txt_lex.setText(res)
+        self.err_lex.setText("\n".join(errores) if errores else "Sin errores léxicos.")
             
-    #         # Llenar Tabla de Símbolos
-    #         simbolos = "ID\t\tLÍNEA\n" + "-"*30 + "\n"
-    #         for l, t, v in tokens:
-    #             if t == 'ID': simbolos += f"{v}\t\t{l}\n"
-    #         self.txt_hash.setText(simbolos)
+            # Llenar Tabla de Símbolos
+            simbolos = "ID\t\tLÍNEA\n" + "-"*30 + "\n"
+            for l, t, v in tokens:
+            if t == 'ID': simbolos += f"{v}\t\t{l}\n"
+            self.txt_hash.setText(simbolos)
 
-    #     elif fase == "sin":
-    #         self.tabs_res.setCurrentIndex(1) # Pestaña Sintáctico
-    #         self.txt_sin.setText("ANALIZANDO ESTRUCTURA...\n[✓] Sintaxis correcta.\n\nÁrbol Sintáctico:\nProgram\n└─ Block\n   └─ Statement")
-    #         self.err_sin.setText("Sin errores sintácticos.")
+        elif fase == "sin":
+            self.tabs_res.setCurrentIndex(1) # Pestaña Sintáctico
+            self.txt_sin.setText("ANALIZANDO ESTRUCTURA...\n[✓] Sintaxis correcta.\n\nÁrbol Sintáctico:\nProgram\n└─ Block\n   └─ Statement")
+        self.err_sin.setText("Sin errores sintácticos.")
 
-    #     elif fase == "sem":
-    #         self.tabs_res.setCurrentIndex(2) # Pestaña Semántico
-    #         self.txt_sem.setText("VERIFICANDO TIPOS...\n[✓] Variable 'contador' es de tipo int.\n[✓] Operación permitida.")
-    #         self.err_sem.setText("Sin errores semánticos.")
+        elif fase == "sem":
+            self.tabs_res.setCurrentIndex(2) # Pestaña Semántico
+            self.txt_sem.setText("VERIFICANDO TIPOS...\n[✓] Variable 'contador' es de tipo int.\n[✓] Operación permitida.")
+            self.err_sem.setText("Sin errores semánticos.")
 
-    #     elif fase == "int":
-    #         self.tabs_res.setCurrentIndex(4) # Pestaña Código Intermedio
-    #         self.txt_int.setText("CÓDIGO DE TRES DIRECCIONES:\n1: t1 = 5\n2: contador = t1\n3: if contador > 0 goto 5")
+        elif fase == "int":
+            self.tabs_res.setCurrentIndex(4) # Pestaña Código Intermedio
+            self.txt_int.setText("CÓDIGO DE TRES DIRECCIONES:\n1: t1 = 5\n2: contador = t1\n3: if contador > 0 goto 5")
 
-    #     elif fase == "exe":
-    #         self.tabs_err.setCurrentIndex(3) # Pestaña Resultados de Ejecución
-    #         self.res_exe.setText("EJECUCIÓN:\n----------------\n5\n4\n3\n2\n1\nProceso terminado.")
+        elif fase == "exe":
+            self.tabs_err.setCurrentIndex(3) # Pestaña Resultados de Ejecución
+         self.res_exe.setText("EJECUCIÓN:\n----------------\n5\n4\n3\n2\n1\nProceso terminado.")
+    """
 
-    # --- ARCHIVOS ---
+    # ================= ARCHIVOS =================
     def nuevo_archivo(self): self.editor.clear(); self.archivo_actual = None
     def abrir_archivo(self):
         path, _ = QFileDialog.getOpenFileName(self, "Abrir")
