@@ -1,0 +1,22 @@
+   Esta estructura es especialmente importante para Ia portabilidad del compilador, en Ia cual el compilador esta diseftado con un enfoql!e hacia Ia modificaci6n, ya sea del c6digo fuente (lo que involucra volver a escribir Ia etapa inicial) o del c6digo objetivo (lo que implica reescribir Ia etapa final). En Ia practica esto ha probado ser diffcil de conseguir, y los denominados compiladores  portatiles todavfa tienden a poseer caracte� rfsticas que dependen tanto dellengnaje fuente como dellenguaje objetivo. Esto puede, en parte, ser culpa de los cambios rapidos y fundamentales tanto en los lenguajes de pro-? gramaci6n como en las arquitecturas de las maquinas, pero tambien es diffcil retener de rnanera eficaz a toda Ia informaci6n que uno pudiera necesitar a!cambiar  a un nuevo lenguaje  objetivo  o al crear  las estructuras de datos  adecuadamente generales  para permitir un cambio a un nuevo lenguaje fuente. No obstante,  una tcntativa consistente para separar las etapas inicial y final redundar:l en bcneficios para una portabilidad 1mis f<\cil.
+
+PASADAS
+
+
+
+
+
+MODIFICADO
+A
+D
+F
+A
+D
+
+A
+SD
+
+ASD
+F
+A
+SD
