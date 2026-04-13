@@ -154,9 +154,6 @@ _SIMBOLO_TIPO = {
     ':': TipoToken.DOS_PUNTOS,
 }
 
-_PARES_CIERRE   = {')': '(', '}': '{', ']': '['}
-_PARES_APERTURA = {'(', '{', '['}
-
 # Operador simple → tipo cuando aparece SOLO (sin par)
 _OP_SIMPLE_TIPO = {
     '+': TipoToken.OP_SUMA,   '-': TipoToken.OP_RESTA,
@@ -235,7 +232,6 @@ class AnalizadorLexico:
     def analizar(self, codigo: str) -> tuple[list[Token], list[ErrorLexico]]:
         tokens:  list[Token]       = []
         errores: list[ErrorLexico] = []
-        pila_delim: list[tuple[str, int, int]] = []
 
         matches = list(_REGEX.finditer(codigo))
         n = len(matches)
@@ -380,25 +376,9 @@ class AnalizadorLexico:
                     tokens.append(Token(tipo, val, linea, col))
                 i += 1; continue
 
-            # ── SÍMBOLOS  (con balance de paréntesis/llaves) ──────────
+            # ── SÍMBOLOS ─────────────────────────────────────────────
             if kind == 'SIMBOLO':
-                tipo = _SIMBOLO_TIPO[val]
-                tokens.append(Token(tipo, val, linea, col))
-
-                if val in _PARES_APERTURA:
-                    pila_delim.append((val, linea, col))
-                elif val in _PARES_CIERRE:
-                    esperado = _PARES_CIERRE[val]
-                    if pila_delim and pila_delim[-1][0] == esperado:
-                        pila_delim.pop()
-                    elif pila_delim:
-                        ap, alin, acol = pila_delim[-1]
-                        errores.append(ErrorLexico(val, linea, col,
-                            f"Cierre '{val}' no corresponde a '{ap}' "
-                            f"(Lín:{alin}, Col:{acol})"))
-                    else:
-                        errores.append(ErrorLexico(val, linea, col,
-                            f"Símbolo de cierre '{val}' sin apertura correspondiente"))
+                tokens.append(Token(_SIMBOLO_TIPO[val], val, linea, col))
                 i += 1; continue
 
             # ── ERROR ─────────────────────────────────────────────────
@@ -408,11 +388,6 @@ class AnalizadorLexico:
                 i += 1; continue
 
             i += 1  # seguridad
-
-        # Aperturas sin cerrar al EOF
-        for ap, alin, acol in pila_delim:
-            errores.append(ErrorLexico(ap, alin, acol,
-                f"Símbolo de apertura '{ap}' sin cierre — llega al EOF"))
 
         errores.sort(key=lambda e: (e.linea, e.columna))
         return tokens, errores
