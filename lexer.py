@@ -1,4 +1,4 @@
-r"""
+"""
 Analizador Léxico — v3
 Arquitectura: regex por patrones (como tu versión funcional) +
 fusión multi-línea para operadores relacionales/lógicos de dos caracteres.
@@ -30,14 +30,14 @@ import re
 from dataclasses import dataclass
 
 # ─────────────────────────────────────────────
-#  TIPOS DE TOKEN  (mismo enum que main.py usa)
+#  TIPOS DE TOKEN
 # ─────────────────────────────────────────────
 from enum import Enum
 
 class TipoToken(Enum):
     NUMERO_ENTERO   = "Número Entero"
     NUMERO_REAL     = "Número Real"
-    ERROR_REAL      = "Error Real"          # ← NUEVO: 32. sin dígitos
+    ERROR_REAL      = "Error Real"
     IDENTIFICADOR   = "Identificador"
     RESERVADA       = "Palabra Reservada"
     OP_SUMA         = "Op. Aritmético +"
@@ -82,7 +82,7 @@ PALABRAS_RESERVADAS = {
 COLORES_TOKEN = {
     TipoToken.NUMERO_ENTERO:   "#4FC3F7",
     TipoToken.NUMERO_REAL:     "#4FC3F7",
-    TipoToken.ERROR_REAL:      "#EF5350",   # mismo rojo que ERROR
+    TipoToken.ERROR_REAL:      "#EF5350",
     TipoToken.IDENTIFICADOR:   "#FFFFFF",
     TipoToken.RESERVADA:       "#CE93D8",
     TipoToken.OP_SUMA:         "#FFCC02",
@@ -146,6 +146,7 @@ class ErrorLexico:
 # ─────────────────────────────────────────────────────────────────
 #  Tabla de símbolos simples  →  TipoToken
 # ─────────────────────────────────────────────────────────────────
+
 _SIMBOLO_TIPO = {
     '(': TipoToken.PARENTESIS_A, ')': TipoToken.PARENTESIS_C,
     '{': TipoToken.LLAVE_A,      '}': TipoToken.LLAVE_C,
@@ -157,18 +158,16 @@ _SIMBOLO_TIPO = {
 _PARES_CIERRE   = {')': '(', '}': '{', ']': '['}
 _PARES_APERTURA = {'(', '{', '['}
 
-# Operador simple → tipo cuando aparece SOLO (sin par)
 _OP_SIMPLE_TIPO = {
     '+': TipoToken.OP_SUMA,   '-': TipoToken.OP_RESTA,
     '*': TipoToken.OP_MULT,   '/': TipoToken.OP_DIV,
     '%': TipoToken.OP_MOD,    '^': TipoToken.OP_POT,
     '<': TipoToken.OP_MENOR,  '>': TipoToken.OP_MAYOR,
     '!': TipoToken.OP_NOT,    '=': TipoToken.ASIGNACION,
-    '&': None,   # '&' solo → error
-    '|': None,   # '|' solo → error
+    '&': None,
+    '|': None,
 }
 
-# Par fusionado → TipoToken
 _FUSION_TIPO = {
     '++': TipoToken.OP_INCR,
     '--': TipoToken.OP_DECR,
@@ -180,7 +179,6 @@ _FUSION_TIPO = {
     '||': TipoToken.OP_OR,
 }
 
-# Caracteres que buscan un segundo carácter para formar par
 _PAREJAS_FUSION = {
     '+': '+', '-': '-',
     '=': '=', '!': '=',
@@ -193,36 +191,27 @@ _PAREJAS_FUSION = {
 #  PATRONES  (orden crítico)
 # ─────────────────────────────────────────────────────────────────
 _PATRONES = [
-    ('ESPACIO',       r'[ \t]+'),
-    ('NUEVA_LINEA',   r'\n'),
-    # Comentarios — capturados ANTES que la '/' suelta
-    ('COMENTARIO',    r'//[^\n]*|/\*.*?\*/|#[^\n]*'),
-    # Cadenas
-    ('CADENA_DOBLE',  r'"(?:[^"\n])*"'),
-    ('CADENA_DOBLE_NC', r'"[^"\n]*'),        # sin cerrar
-    ('CADENA_SIMPLE', r"'(?:[^'\n])*'"),
-    ('CADENA_SIMPLE_NC', r"'[^'\n]*"),       # sin cerrar
-    # Números  (REAL antes que ENTERO)
-    ('NUMERO_REAL',   r'\d+\.\d+'),
-    ('ERROR_REAL',    r'\d+\.'),             # 32.  sin dígitos = error
-    ('NUMERO_ENTERO', r'\d+'),
-    # Identificadores / palabras reservadas
-    ('IDENTIFICADOR', r'[a-zA-Z_][a-zA-Z0-9_]*'),
-    # Operadores dobles sin espacio (atajos directos antes de los simples)
-    ('OP_MULTI',      r'\+\+|--|&&|\|\|'),
-    # Operadores simples (candidatos a fusión multi-línea)
-    ('OP_SIMPLE',     r'[+\-=!<>&|]'),
-    # Otros operadores que NO participan en fusión
-    ('OP_OTROS',      r'[*/% ^]'),
-    # Símbolos
-    ('SIMBOLO',       r'[(){}\[\],:;]'),
-    # Cualquier otro → error
-    ('ERROR',         r'.'),
+    ('ESPACIO',         r'[ \t]+'),
+    ('NUEVA_LINEA',     r'\n'),
+    ('COMENTARIO',      r'//[^\n]*|/\*.*?\*/|#[^\n]*'),
+    ('CADENA_DOBLE',    r'"(?:[^"\n])*"'),
+    ('CADENA_DOBLE_NC', r'"[^"\n]*'),
+    ('CADENA_SIMPLE',   r"'(?:[^'\n])*'"),
+    ('CADENA_SIMPLE_NC',r"'[^'\n]*"),
+    ('NUMERO_REAL',     r'\d+\.\d+'),
+    ('ERROR_REAL',      r'\d+\.'),
+    ('NUMERO_ENTERO',   r'\d+'),
+    ('IDENTIFICADOR',   r'[a-zA-Z_][a-zA-Z0-9_]*'),
+    ('OP_MULTI',        r'\+\+|--|&&|\|\|'),
+    ('OP_SIMPLE',       r'[+\-=!<>&|]'),
+    ('OP_OTROS',        r'[*/% ^]'),
+    ('SIMBOLO',         r'[(){}\[\],:;]'),
+    ('ERROR',           r'.'),
 ]
 
 _REGEX = re.compile(
     '|'.join(f'(?P<{name}>{pat})' for name, pat in _PATRONES),
-    re.DOTALL   # para que /* */ multilínea funcione
+    re.DOTALL
 )
 
 
@@ -232,7 +221,18 @@ _REGEX = re.compile(
 
 class AnalizadorLexico:
 
-    def analizar(self, codigo: str) -> tuple[list[Token], list[ErrorLexico]]:
+    def analizar(self, codigo: str, verificar_balance: bool = True) -> tuple[list[Token], list[ErrorLexico]]:
+        """
+        Analiza el código fuente y retorna (tokens, errores).
+
+        Parámetros:
+            codigo            — cadena de código a analizar.
+            verificar_balance — si es True, reporta aperturas sin cierre al llegar
+                                al EOF y cierres sin apertura correspondiente.
+                                Debe ser False cuando se llama línea por línea
+                                (p. ej. desde el highlighter) para evitar falsos
+                                positivos por delimitadores que cierran en otra línea.
+        """
         tokens:  list[Token]       = []
         errores: list[ErrorLexico] = []
         pila_delim: list[tuple[str, int, int]] = []
@@ -241,7 +241,7 @@ class AnalizadorLexico:
         n = len(matches)
 
         linea          = 1
-        columna_inicio = 0   # posición en 'codigo' donde empieza la línea actual
+        columna_inicio = 0
 
         i = 0
         while i < n:
@@ -250,7 +250,7 @@ class AnalizadorLexico:
             val  = m.group()
             col  = m.start() - columna_inicio + 1
 
-            # ── ESPACIO  (trimming) ───────────────────────────────────
+            # ── ESPACIO ───────────────────────────────────────────────
             if kind == 'ESPACIO':
                 i += 1
                 continue
@@ -264,7 +264,6 @@ class AnalizadorLexico:
 
             # ── COMENTARIO ────────────────────────────────────────────
             if kind == 'COMENTARIO':
-                # Contar saltos de línea dentro del comentario
                 nl = val.count('\n')
                 tokens.append(Token(TipoToken.COMENTARIO, val, linea, col))
                 if nl:
@@ -298,7 +297,6 @@ class AnalizadorLexico:
                 i += 1; continue
 
             if kind == 'ERROR_REAL':
-                # p. ej. "32."  → el número tiene punto pero sin dígitos después
                 errores.append(ErrorLexico(val, linea, col,
                     f"Número real mal formado '{val}' — falta dígito tras el punto"))
                 i += 1; continue
@@ -321,10 +319,8 @@ class AnalizadorLexico:
                 i += 1; continue
 
             # ── OPERADORES SIMPLES — LÓGICA DE FUSIÓN MULTI-LÍNEA ─────
-            # (tu algoritmo original, adaptado)
             if kind == 'OP_SIMPLE':
                 if val in _PAREJAS_FUSION:
-                    # Buscar el segundo carácter saltando ESPACIO y NUEVA_LINEA
                     segundo_esperado = _PAREJAS_FUSION[val]
                     j = i + 1
                     lineas_saltadas   = 0
@@ -340,7 +336,6 @@ class AnalizadorLexico:
                             lineas_saltadas += 1
                             temp_col_inicio  = nxt.end()
                             j += 1; continue
-                        # Primer token que no es blanco
                         if nxt.group() == segundo_esperado:
                             encontro_par = True
                         break
@@ -353,24 +348,22 @@ class AnalizadorLexico:
                         columna_inicio  = temp_col_inicio
                         i = j + 1
                         continue
-                    # No encontró par → emitir como operador simple o error
+
                     tipo_solo = _OP_SIMPLE_TIPO.get(val)
                     if tipo_solo is not None:
                         tokens.append(Token(tipo_solo, val, linea, col))
                     else:
-                        # '&' o '|' solos
                         errores.append(ErrorLexico(val, linea, col,
                             f"'{val}' solo no es válido — "
                             f"¿quiso escribir '{val}{val}'?"))
                     i += 1
                     continue
 
-                # OP_SIMPLE sin entrada en _PAREJAS_FUSION (no debería ocurrir)
                 tokens.append(Token(_OP_SIMPLE_TIPO.get(val, TipoToken.ERROR),
                                     val, linea, col))
                 i += 1; continue
 
-            # ── OTROS OPERADORES (* / % ^ ) ───────────────────────────
+            # ── OTROS OPERADORES (* / % ^) ────────────────────────────
             if kind == 'OP_OTROS':
                 mapa = {'*': TipoToken.OP_MULT, '/': TipoToken.OP_DIV,
                         '%': TipoToken.OP_MOD,  '^': TipoToken.OP_POT,
@@ -385,20 +378,23 @@ class AnalizadorLexico:
                 tipo = _SIMBOLO_TIPO[val]
                 tokens.append(Token(tipo, val, linea, col))
 
-                if val in _PARES_APERTURA:
-                    pila_delim.append((val, linea, col))
-                elif val in _PARES_CIERRE:
-                    esperado = _PARES_CIERRE[val]
-                    if pila_delim and pila_delim[-1][0] == esperado:
-                        pila_delim.pop()
-                    elif pila_delim:
-                        ap, alin, acol = pila_delim[-1]
-                        errores.append(ErrorLexico(val, linea, col,
-                            f"Cierre '{val}' no corresponde a '{ap}' "
-                            f"(Lín:{alin}, Col:{acol})"))
-                    else:
-                        errores.append(ErrorLexico(val, linea, col,
-                            f"Símbolo de cierre '{val}' sin apertura correspondiente"))
+                # El balance solo se verifica cuando se analiza el archivo completo,
+                # no línea a línea desde el highlighter (verificar_balance=False).
+                if verificar_balance:
+                    if val in _PARES_APERTURA:
+                        pila_delim.append((val, linea, col))
+                    elif val in _PARES_CIERRE:
+                        esperado = _PARES_CIERRE[val]
+                        if pila_delim and pila_delim[-1][0] == esperado:
+                            pila_delim.pop()
+                        elif pila_delim:
+                            ap, alin, acol = pila_delim[-1]
+                            errores.append(ErrorLexico(val, linea, col,
+                                f"Cierre '{val}' no corresponde a '{ap}' "
+                                f"(Lín:{alin}, Col:{acol})"))
+                        else:
+                            errores.append(ErrorLexico(val, linea, col,
+                                f"Símbolo de cierre '{val}' sin apertura correspondiente"))
                 i += 1; continue
 
             # ── ERROR ─────────────────────────────────────────────────
@@ -409,10 +405,11 @@ class AnalizadorLexico:
 
             i += 1  # seguridad
 
-        # Aperturas sin cerrar al EOF
-        for ap, alin, acol in pila_delim:
-            errores.append(ErrorLexico(ap, alin, acol,
-                f"Símbolo de apertura '{ap}' sin cierre — llega al EOF"))
+        # Aperturas sin cerrar al EOF — solo en análisis completo
+        if verificar_balance:
+            for ap, alin, acol in pila_delim:
+                errores.append(ErrorLexico(ap, alin, acol,
+                    f"Símbolo de apertura '{ap}' sin cierre — llega al EOF"))
 
         errores.sort(key=lambda e: (e.linea, e.columna))
         return tokens, errores
