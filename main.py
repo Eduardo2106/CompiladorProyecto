@@ -10,7 +10,7 @@ from PyQt6.QtGui import (
     QAction, QColor, QTextFormat, QPainter, QIcon, QFont,
     QTextCharFormat, QTextCursor
 )
-from PyQt6.QtCore import Qt, QRect, QSize, QTimer
+from PyQt6.QtCore import Qt, QRect, QSize
 
 from lexer import AnalizadorLexico, TipoToken, COLORES_TOKEN, Token, ErrorLexico
 from highlighter import ResaltadorSintaxis
@@ -102,7 +102,7 @@ class CodeEditor(QPlainTextEdit):
 # ================= 2. TABLA DE TOKENS =================
 
 class TablaTokens(QTableWidget):
-    """Widget de tabla para mostrar los tokens encontrados (sin comentarios)."""
+    """Widget de tabla para mostrar los tokens encontrados."""
 
     COLUMNAS = ["#", "Token", "Tipo", "Línea", "Columna"]
 
@@ -211,12 +211,6 @@ class CompiladorIDE(QMainWindow):
         self.setGeometry(100, 100, 1400, 850)
         self.archivo_actual = None
         self._lexer = AnalizadorLexico()
-
-        # Timer para análisis automático con debounce
-        self._timer_analisis = QTimer()
-        self._timer_analisis.setSingleShot(True)
-        self._timer_analisis.timeout.connect(self._ejecutar_analisis_lexico)
-
         self.init_ui()
 
     def init_ui(self):
@@ -274,7 +268,7 @@ class CompiladorIDE(QMainWindow):
         toolbar.addAction("💾  Guardar", self.guardar_archivo)
         toolbar.addAction("❌  Cerrar",  self.cerrar_archivo)
         toolbar.addSeparator()
-        act_lex = QAction("▶ Léxico ", self)
+        act_lex = QAction("▶  Léxico  (F5)", self)
         act_lex.setToolTip("Ejecutar análisis léxico")
         act_lex.triggered.connect(self._ejecutar_analisis_lexico)
         act_lex.setFont(QFont("Consolas", 10))
@@ -287,7 +281,6 @@ class CompiladorIDE(QMainWindow):
         # Editor con resaltador
         self.editor = CodeEditor()
         self.editor.cursorPositionChanged.connect(self._actualizar_status)
-        self.editor.textChanged.connect(self._on_texto_cambiado)
         self._highlighter = ResaltadorSintaxis(self.editor.document())
         splitter_h.addWidget(self.editor)
 
@@ -297,7 +290,7 @@ class CompiladorIDE(QMainWindow):
 
         # ── Pestaña Léxico: tabla de tokens ──
         self.tabla_tokens = TablaTokens()
-        self.tabs_res.addTab(self.tabla_tokens, " Léxico")
+        self.tabs_res.addTab(self.tabla_tokens, "🔤 Léxico")
 
         # Pestañas de fases futuras (placeholder)
         for nombre in ["Sintáctico", "Semántico", "Tabla Hash", "Cód. Intermedio"]:
@@ -395,10 +388,6 @@ class CompiladorIDE(QMainWindow):
         total  = self.editor.blockCount()
         self.lbl_cursor.setText(f"Lín: {linea}/{total}   Col: {col}")
 
-    def _on_texto_cambiado(self):
-        """Dispara análisis léxico automático 600 ms después de dejar de escribir."""
-        self._timer_analisis.start(600)
-
     # ── Análisis Léxico ───────────────────────────────────────────────
 
     def _ejecutar_analisis_lexico(self):
@@ -410,18 +399,12 @@ class CompiladorIDE(QMainWindow):
             self.lbl_errores.setText("Errores: 0")
             return
 
-        # El lexer solo reporta errores léxicos puros (no balance de delimitadores)
         tokens, errores = self._lexer.analizar(codigo)
 
-        # Los comentarios se resaltan en el editor pero NO se muestran
-        # en la tabla de tokens — solo interesan al programador como
-        # documentación, no como unidades léxicas del lenguaje.
-        tokens_visibles = [t for t in tokens if t.tipo != TipoToken.COMENTARIO]
-
-        self.tabla_tokens.cargar_tokens(tokens_visibles)
+        self.tabla_tokens.cargar_tokens(tokens)
         self.tabla_errores_lex.cargar_errores(errores)
 
-        self.lbl_tokens.setText(f"Tokens: {len(tokens_visibles)}")
+        self.lbl_tokens.setText(f"Tokens: {len(tokens)}")
         color_err = "#EF5350" if errores else "#A5D6A7"
         self.lbl_errores.setStyleSheet(f"color:{color_err}; padding: 0 8px;")
         self.lbl_errores.setText(f"Errores: {len(errores)}")
@@ -433,7 +416,7 @@ class CompiladorIDE(QMainWindow):
             self.tabs_res.setCurrentIndex(0)
 
         self.status.showMessage(
-            f"Análisis léxico completado — {len(tokens_visibles)} tokens, {len(errores)} errores",
+            f"Análisis léxico completado — {len(tokens)} tokens, {len(errores)} errores",
             4000
         )
 
@@ -492,6 +475,7 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
 
+    # Paleta oscura global
     from PyQt6.QtGui import QPalette
     palette = QPalette()
     palette.setColor(QPalette.ColorRole.Window,          QColor("#1a1a1a"))
