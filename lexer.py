@@ -24,6 +24,11 @@ Fusión multi-línea:
     Sólo aplica a los caracteres que pueden formar esos pares:
         '+'→'+',  '-'→'-',  '='→'=',  '!'→'=',  '<'→'=',  '>'→'=',
         '&'→'&',  '|'→'|'
+
+NOTA: El balance de delimitadores ( ) { } [ ] NO se verifica aquí.
+Esa responsabilidad pertenece al Analizador Sintáctico. El léxico
+solo tokeniza; reportar paréntesis/llaves desbalanceadas es un
+error sintáctico, no léxico.
 """
 
 import re
@@ -155,8 +160,8 @@ _SIMBOLO_TIPO = {
     ':': TipoToken.DOS_PUNTOS,
 }
 
-_PARES_CIERRE   = {')': '(', '}': '{', ']': '['}
-_PARES_APERTURA = {'(', '{', '['}
+# _PARES_CIERRE / _PARES_APERTURA eliminados — el balance de
+# delimitadores es responsabilidad del analizador sintáctico, no del léxico.
 
 _OP_SIMPLE_TIPO = {
     '+': TipoToken.OP_SUMA,   '-': TipoToken.OP_RESTA,
@@ -221,21 +226,21 @@ _REGEX = re.compile(
 
 class AnalizadorLexico:
 
-    def analizar(self, codigo: str, verificar_balance: bool = True) -> tuple[list[Token], list[ErrorLexico]]:
+    def analizar(self, codigo: str) -> tuple[list[Token], list[ErrorLexico]]:
         """
         Analiza el código fuente y retorna (tokens, errores).
 
-        Parámetros:
-            codigo            — cadena de código a analizar.
-            verificar_balance — si es True, reporta aperturas sin cierre al llegar
-                                al EOF y cierres sin apertura correspondiente.
-                                Debe ser False cuando se llama línea por línea
-                                (p. ej. desde el highlighter) para evitar falsos
-                                positivos por delimitadores que cierran en otra línea.
+        Solo reporta errores LÉXICOS puros:
+          • Caracteres no reconocidos
+          • Números reales mal formados  (32.)
+          • Cadenas sin cerrar
+          • Operadores '&' o '|' solos
+
+        El balance de delimitadores ( ) { } [ ] NO se verifica aquí;
+        eso corresponde al analizador sintáctico.
         """
         tokens:  list[Token]       = []
         errores: list[ErrorLexico] = []
-        pila_delim: list[tuple[str, int, int]] = []
 
         matches = list(_REGEX.finditer(codigo))
         n = len(matches)
@@ -373,28 +378,10 @@ class AnalizadorLexico:
                     tokens.append(Token(tipo, val, linea, col))
                 i += 1; continue
 
-            # ── SÍMBOLOS  (con balance de paréntesis/llaves) ──────────
+            # ── SÍMBOLOS — solo tokenizar, sin verificar balance ─────
             if kind == 'SIMBOLO':
                 tipo = _SIMBOLO_TIPO[val]
                 tokens.append(Token(tipo, val, linea, col))
-
-                # El balance solo se verifica cuando se analiza el archivo completo,
-                # no línea a línea desde el highlighter (verificar_balance=False).
-                if verificar_balance:
-                    if val in _PARES_APERTURA:
-                        pila_delim.append((val, linea, col))
-                    elif val in _PARES_CIERRE:
-                        esperado = _PARES_CIERRE[val]
-                        if pila_delim and pila_delim[-1][0] == esperado:
-                            pila_delim.pop()
-                        elif pila_delim:
-                            ap, alin, acol = pila_delim[-1]
-                            errores.append(ErrorLexico(val, linea, col,
-                                f"Cierre '{val}' no corresponde a '{ap}' "
-                                f"(Lín:{alin}, Col:{acol})"))
-                        else:
-                            errores.append(ErrorLexico(val, linea, col,
-                                f"Símbolo de cierre '{val}' sin apertura correspondiente"))
                 i += 1; continue
 
             # ── ERROR ─────────────────────────────────────────────────
@@ -404,12 +391,6 @@ class AnalizadorLexico:
                 i += 1; continue
 
             i += 1  # seguridad
-
-        # Aperturas sin cerrar al EOF — solo en análisis completo
-        if verificar_balance:
-            for ap, alin, acol in pila_delim:
-                errores.append(ErrorLexico(ap, alin, acol,
-                    f"Símbolo de apertura '{ap}' sin cierre — llega al EOF"))
 
         errores.sort(key=lambda e: (e.linea, e.columna))
         return tokens, errores

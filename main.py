@@ -410,8 +410,8 @@ class CompiladorIDE(QMainWindow):
             self.lbl_errores.setText("Errores: 0")
             return
 
-        # verificar_balance=True: análisis completo del archivo
-        tokens, errores = self._lexer.analizar(codigo, verificar_balance=True)
+        # El lexer solo reporta errores léxicos puros (no balance de delimitadores)
+        tokens, errores = self._lexer.analizar(codigo)
 
         # Los comentarios se resaltan en el editor pero NO se muestran
         # en la tabla de tokens — solo interesan al programador como

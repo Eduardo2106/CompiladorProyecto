@@ -31,8 +31,8 @@ class ResaltadorSintaxis(QSyntaxHighlighter):
     Resaltador que:
       • Usa el AnalizadorLexico real para colorear tokens en líneas normales.
       • Maneja /* ... */ multilínea con el mecanismo de estado de Qt.
-      • Pasa verificar_balance=False al lexer para evitar falsos errores
-        por delimitadores que abren en una línea y cierran en otra.
+      • El lexer no verifica balance de delimitadores (eso es sintáctico),
+        por lo que no genera falsos errores por bloques multilínea.
     """
 
     def __init__(self, document):
@@ -109,14 +109,13 @@ class ResaltadorSintaxis(QSyntaxHighlighter):
         sumando `offset` a cada posición (porque `text` puede ser un
         fragmento que empieza en medio de la línea real).
 
-        Se llama con verificar_balance=False para que el lexer no reporte
-        errores de delimitadores sin cerrar (eso solo tiene sentido al
-        analizar el archivo completo).
+        El lexer ya no verifica balance de delimitadores, así que no
+        genera falsos errores de paréntesis/llaves incompletos.
         """
         if not text.strip():
             return
 
-        tokens, errores = self._lexer.analizar(text, verificar_balance=False)
+        tokens, errores = self._lexer.analizar(text)
 
         for token in tokens:
             color_hex = COLORES_TOKEN.get(token.tipo, "#FFFFFF")
