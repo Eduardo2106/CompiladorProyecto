@@ -1,6 +1,8 @@
-main sum@r 3.14+main)if{32.algo
+//main sum@r 3.14+main)if{32.algo
 34.34.34.34
-{
+.9877+98765.otro-a1b2c3d4/56
++++++-----=====
+/*{
 int x,y,z;
 real a,b,c;
  suma=45;
@@ -34,7 +36,9 @@ do
    while(x>7){x=6+8/9*8/3;   
     cin x; 
    mas=36/7; 
-   };
+   };*/
+cadena="hola"
+caracter='a'
 
  until(y=
 

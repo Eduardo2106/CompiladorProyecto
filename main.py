@@ -237,11 +237,11 @@ class CompiladorIDE(QMainWindow):
         self._add_action(menu_archivo, "Salir",        "Ctrl+Q", self.close)
 
         menu_compilar = menubar.addMenu("Compilar")
-        self._add_action(menu_compilar, "▶  Análisis Léxico",     "F5",  self._ejecutar_analisis_lexico)
-        self._add_action(menu_compilar, "Análisis Sintáctico",    "F6",  lambda: None)
-        self._add_action(menu_compilar, "Análisis Semántico",     "F7",  lambda: None)
-        self._add_action(menu_compilar, "Código Intermedio",      "F8",  lambda: None)
-        self._add_action(menu_compilar, "Ejecutar",               "F9",  lambda: None)
+        self._add_action(menu_compilar, "▶ Análisis Léxico",     "F5",  self._ejecutar_analisis_lexico)
+        self._add_action(menu_compilar, "▶ Análisis Sintáctico",    "F6",  lambda: None)
+        self._add_action(menu_compilar, "▶ Análisis Semántico",     "F7",  lambda: None)
+        self._add_action(menu_compilar, "▶ Código Intermedio",      "F8",  lambda: None)
+        self._add_action(menu_compilar, "▶ Ejecutar",               "F9",  lambda: None)
 
         # ── Toolbar ──────────────────────────────────────────────────
         toolbar = QToolBar("Principal")
@@ -268,7 +268,7 @@ class CompiladorIDE(QMainWindow):
         toolbar.addAction("💾  Guardar", self.guardar_archivo)
         toolbar.addAction("❌  Cerrar",  self.cerrar_archivo)
         toolbar.addSeparator()
-        act_lex = QAction("▶  Léxico  (F5)", self)
+        act_lex = QAction("▶ Léxico ", self)
         act_lex.setToolTip("Ejecutar análisis léxico")
         act_lex.triggered.connect(self._ejecutar_analisis_lexico)
         act_lex.setFont(QFont("Consolas", 10))
