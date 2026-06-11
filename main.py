@@ -10,10 +10,12 @@ from PyQt6.QtGui import (
     QAction, QColor, QTextFormat, QPainter, QIcon, QFont,
     QTextCharFormat, QTextCursor
 )
-from PyQt6.QtCore import Qt, QRect, QSize
+from PyQt6.QtCore import Qt, QRect, QSize, QTimer
 
 from lexer import AnalizadorLexico, TipoToken, COLORES_TOKEN, Token, ErrorLexico
 from highlighter import ResaltadorSintaxis
+from parser import Parser, ErrorSintactico
+from ast_widget import ArbolAST
 
 
 # ================= 1. COMPONENTES DE INTERFAZ (EDITOR) =================
@@ -102,7 +104,7 @@ class CodeEditor(QPlainTextEdit):
 # ================= 2. TABLA DE TOKENS =================
 
 class TablaTokens(QTableWidget):
-    """Widget de tabla para mostrar los tokens encontrados."""
+    """Widget de tabla para mostrar los tokens encontrados (sin comentarios)."""
 
     COLUMNAS = ["#", "Token", "Tipo", "Línea", "Columna"]
 
@@ -202,15 +204,70 @@ class TablaErrores(QTableWidget):
                 self.setItem(i, j, item)
 
 
-# ================= 4. VENTANA PRINCIPAL (IDE) =================
+# ================= 3b. TABLA DE ERRORES SINTÁCTICOS =================
+
+class TablaErroresSint(QTableWidget):
+    """Widget de tabla para mostrar los errores sintácticos."""
+
+    COLUMNAS = ["#", "Descripción", "Tipo", "Línea", "Columna"]
+
+    def __init__(self):
+        super().__init__()
+        self.setColumnCount(len(self.COLUMNAS))
+        self.setHorizontalHeaderLabels(self.COLUMNAS)
+        self.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.setFont(QFont("Consolas", 10))
+        self.setStyleSheet("""
+            QTableWidget {
+                background-color: #1a1a1a;
+                color: #e0e0e0;
+                gridline-color: #2a2a2a;
+                border: none;
+            }
+            QTableWidget::item:selected { background-color: #4a2a2a; }
+            QHeaderView::section {
+                background-color: #141414;
+                color: #aaaaaa;
+                padding: 4px;
+                border: 1px solid #2a2a2a;
+                font-weight: bold;
+            }
+        """)
+
+    def cargar_errores(self, errores: list[ErrorSintactico]):
+        self.setRowCount(0)
+        for i, err in enumerate(errores):
+            self.insertRow(i)
+            color_desc = "#EF5350" if err.tipo_err == "Error" else "#FFCC02"
+            items = [str(i + 1), err.mensaje, err.tipo_err,
+                     str(err.linea), str(err.columna)]
+            for j, val in enumerate(items):
+                item = QTableWidgetItem(val)
+                if j in (1, 2):
+                    item.setForeground(QColor(color_desc))
+                else:
+                    item.setForeground(QColor("#aaaaaa"))
+                self.setItem(i, j, item)
+
+
+
 
 class CompiladorIDE(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("IDE - Compilador  |  Analizador Léxico")
+        self.setWindowTitle("IDE - Compilador  |  Fase 1 + Fase 2")
         self.setGeometry(100, 100, 1400, 850)
         self.archivo_actual = None
-        self._lexer = AnalizadorLexico()
+        self._lexer  = AnalizadorLexico()
+        self._parser = Parser([])
+
+        # Timer para análisis automático con debounce
+        self._timer_analisis = QTimer()
+        self._timer_analisis.setSingleShot(True)
+        self._timer_analisis.timeout.connect(self._ejecutar_analisis_lexico)
+
         self.init_ui()
 
     def init_ui(self):
@@ -237,11 +294,11 @@ class CompiladorIDE(QMainWindow):
         self._add_action(menu_archivo, "Salir",        "Ctrl+Q", self.close)
 
         menu_compilar = menubar.addMenu("Compilar")
-        self._add_action(menu_compilar, "▶ Análisis Léxico",     "F5",  self._ejecutar_analisis_lexico)
-        self._add_action(menu_compilar, "▶ Análisis Sintáctico",    "F6",  lambda: None)
-        self._add_action(menu_compilar, "▶ Análisis Semántico",     "F7",  lambda: None)
-        self._add_action(menu_compilar, "▶ Código Intermedio",      "F8",  lambda: None)
-        self._add_action(menu_compilar, "▶ Ejecutar",               "F9",  lambda: None)
+        self._add_action(menu_compilar, "▶  Análisis Léxico",     "F5",  self._ejecutar_analisis_lexico)
+        self._add_action(menu_compilar, "▶  Análisis Sintáctico", "F6",  self._ejecutar_analisis_sintactico)
+        self._add_action(menu_compilar, "Análisis Semántico",     "F7",  lambda: None)
+        self._add_action(menu_compilar, "Código Intermedio",      "F8",  lambda: None)
+        self._add_action(menu_compilar, "Ejecutar",               "F9",  lambda: None)
 
         # ── Toolbar ──────────────────────────────────────────────────
         toolbar = QToolBar("Principal")
@@ -269,10 +326,16 @@ class CompiladorIDE(QMainWindow):
         toolbar.addAction("❌  Cerrar",  self.cerrar_archivo)
         toolbar.addSeparator()
         act_lex = QAction("▶ Léxico ", self)
-        act_lex.setToolTip("Ejecutar análisis léxico")
+        act_lex.setToolTip("Ejecutar análisis léxico (F5)")
         act_lex.triggered.connect(self._ejecutar_analisis_lexico)
         act_lex.setFont(QFont("Consolas", 10))
         toolbar.addAction(act_lex)
+
+        act_sint = QAction("▶ Sintáctico", self)
+        act_sint.setToolTip("Ejecutar análisis sintáctico (F6)")
+        act_sint.triggered.connect(self._ejecutar_analisis_sintactico)
+        act_sint.setFont(QFont("Consolas", 10))
+        toolbar.addAction(act_sint)
 
         # ── Layout principal ──────────────────────────────────────────
         splitter_v = QSplitter(Qt.Orientation.Vertical)
@@ -281,6 +344,7 @@ class CompiladorIDE(QMainWindow):
         # Editor con resaltador
         self.editor = CodeEditor()
         self.editor.cursorPositionChanged.connect(self._actualizar_status)
+        self.editor.textChanged.connect(self._on_texto_cambiado)
         self._highlighter = ResaltadorSintaxis(self.editor.document())
         splitter_h.addWidget(self.editor)
 
@@ -290,10 +354,14 @@ class CompiladorIDE(QMainWindow):
 
         # ── Pestaña Léxico: tabla de tokens ──
         self.tabla_tokens = TablaTokens()
-        self.tabs_res.addTab(self.tabla_tokens, "🔤 Léxico")
+        self.tabs_res.addTab(self.tabla_tokens, " Léxico")
+
+        # ── Pestaña Sintáctico: árbol AST colapsable ──
+        self.arbol_ast = ArbolAST()
+        self.tabs_res.addTab(self.arbol_ast, " Sintáctico")
 
         # Pestañas de fases futuras (placeholder)
-        for nombre in ["Sintáctico", "Semántico", "Tabla Hash", "Cód. Intermedio"]:
+        for nombre in ["Semántico", "Tabla Hash", "Cód. Intermedio"]:
             txt = QTextEdit()
             txt.setReadOnly(True)
             txt.setFont(QFont("Consolas", 10))
@@ -302,7 +370,7 @@ class CompiladorIDE(QMainWindow):
             self.tabs_res.addTab(txt, nombre)
 
         splitter_h.addWidget(self.tabs_res)
-        splitter_h.setSizes([700, 500])
+        splitter_h.setSizes([550, 650])   # panel derecho más ancho
         splitter_v.addWidget(splitter_h)
 
         # ── Panel inferior: errores ───────────────────────────────────
@@ -312,7 +380,11 @@ class CompiladorIDE(QMainWindow):
         self.tabla_errores_lex = TablaErrores()
         self.tabs_err.addTab(self.tabla_errores_lex, "⚠ Errores Léxicos")
 
-        for nombre in ["Errores Sintácticos", "Errores Semánticos", "Consola / Ejecución"]:
+        # ── Pestaña Errores Sintácticos: tabla real ──
+        self.tabla_errores_sint = TablaErroresSint()
+        self.tabs_err.addTab(self.tabla_errores_sint, "⚠ Errores Sintácticos")
+
+        for nombre in ["Errores Semánticos", "Consola / Ejecución"]:
             txt = QTextEdit()
             txt.setReadOnly(True)
             txt.setFont(QFont("Consolas", 10))
@@ -321,7 +393,7 @@ class CompiladorIDE(QMainWindow):
             self.tabs_err.addTab(txt, nombre)
 
         splitter_v.addWidget(self.tabs_err)
-        splitter_v.setSizes([580, 220])
+        splitter_v.setSizes([650, 150])
 
         self.setCentralWidget(splitter_v)
 
@@ -337,7 +409,7 @@ class CompiladorIDE(QMainWindow):
         """)
         self.setStatusBar(self.status)
 
-        self.lbl_cursor  = QLabel("Lín: 1/1   Col: 1")
+        self.lbl_cursor  = QLabel("Línea: 1/1 , Col: 1")
         self.lbl_tokens  = QLabel("Tokens: 0")
         self.lbl_errores = QLabel("Errores: 0")
         self.lbl_archivo = QLabel("Sin archivo")
@@ -388,6 +460,10 @@ class CompiladorIDE(QMainWindow):
         total  = self.editor.blockCount()
         self.lbl_cursor.setText(f"Lín: {linea}/{total}   Col: {col}")
 
+    def _on_texto_cambiado(self):
+        """Dispara análisis léxico automático 600 ms después de dejar de escribir."""
+        self._timer_analisis.start(600)
+
     # ── Análisis Léxico ───────────────────────────────────────────────
 
     def _ejecutar_analisis_lexico(self):
@@ -399,12 +475,18 @@ class CompiladorIDE(QMainWindow):
             self.lbl_errores.setText("Errores: 0")
             return
 
+        # El lexer solo reporta errores léxicos puros (no balance de delimitadores)
         tokens, errores = self._lexer.analizar(codigo)
 
-        self.tabla_tokens.cargar_tokens(tokens)
+        # Los comentarios se resaltan en el editor pero NO se muestran
+        # en la tabla de tokens — solo interesan al programador como
+        # documentación, no como unidades léxicas del lenguaje.
+        tokens_visibles = [t for t in tokens if t.tipo != TipoToken.COMENTARIO]
+
+        self.tabla_tokens.cargar_tokens(tokens_visibles)
         self.tabla_errores_lex.cargar_errores(errores)
 
-        self.lbl_tokens.setText(f"Tokens: {len(tokens)}")
+        self.lbl_tokens.setText(f"Tokens: {len(tokens_visibles)}")
         color_err = "#EF5350" if errores else "#A5D6A7"
         self.lbl_errores.setStyleSheet(f"color:{color_err}; padding: 0 8px;")
         self.lbl_errores.setText(f"Errores: {len(errores)}")
@@ -416,9 +498,82 @@ class CompiladorIDE(QMainWindow):
             self.tabs_res.setCurrentIndex(0)
 
         self.status.showMessage(
-            f"Análisis léxico completado — {len(tokens)} tokens, {len(errores)} errores",
+            f"Análisis léxico completado — {len(tokens_visibles)} tokens, {len(errores)} errores",
             4000
         )
+
+    # ── Análisis Sintáctico ───────────────────────────────────────────
+
+    def _ejecutar_analisis_sintactico(self):
+        codigo = self.editor.toPlainText()
+        if not codigo.strip():
+            self.arbol_ast.limpiar()
+            self.tabla_errores_sint.setRowCount(0)
+            self.status.showMessage("No hay nada que analizar", 3000)
+            return
+
+        # 1. Ejecutar léxico para obtener tokens limpios
+        tokens, errores_lex = self._lexer.analizar(codigo)
+        tokens_para_parser = [t for t in tokens
+                              if t.tipo not in (TipoToken.COMENTARIO,
+                                                TipoToken.ERROR,
+                                                TipoToken.ERROR_REAL)]
+
+        # 2. Parsear
+        parser = Parser(tokens_para_parser)
+        ast, errores_sint = parser.parsear()
+
+        # 3. Cargar AST en pestaña integrada
+        self.arbol_ast.cargar_ast(ast)
+        self.tabs_res.setCurrentIndex(1)
+
+        # 4. Abrir ventana flotante maximizada con el árbol completo
+        self._mostrar_ventana_ast(ast, errores_sint)
+
+        # 5. Mostrar errores sintácticos en panel inferior
+        self.tabla_errores_sint.cargar_errores(errores_sint)
+        if errores_sint:
+            self.tabs_err.setCurrentIndex(1)
+
+        # 6. Mensaje de estado
+        estado = "sin errores ✓" if not errores_sint else f"{len(errores_sint)} error(es)"
+        self.status.showMessage(
+            f"Análisis sintáctico completado — {estado}", 5000
+        )
+
+    def _mostrar_ventana_ast(self, ast, errores_sint):
+        """Abre una ventana independiente maximizada que muestra el AST completo."""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QSizePolicy
+
+        ventana = QDialog(self)
+        ventana.setWindowTitle("Árbol Sintáctico Abstracto (AST)")
+        ventana.setStyleSheet("background:#1a1a1a; color:#cccccc;")
+        ventana.resize(1300, 850)
+
+        layout = QVBoxLayout(ventana)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(6)
+
+        # Cabecera con info de errores
+        color_err = "#EF5350" if errores_sint else "#A5D6A7"
+        msg_err   = (f"{len(errores_sint)} error(es) sintáctico(s)"
+                     if errores_sint else "Sin errores sintácticos ✓")
+        lbl_header = QLabel(f"  AST generado  —  {msg_err}")
+        lbl_header.setStyleSheet(
+            f"color:{color_err}; font-family:Consolas; font-size:11pt;"
+            f" background:#141414; padding:6px; border-radius:4px;"
+        )
+        layout.addWidget(lbl_header)
+
+        # Árbol AST en la ventana flotante (instancia independiente)
+        arbol_flotante = ArbolAST()
+        arbol_flotante.cargar_ast(ast)
+        arbol_flotante.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
+        layout.addWidget(arbol_flotante)
+
+        ventana.showMaximized()   # maximizar automáticamente
 
     # ── Gestión de archivos ───────────────────────────────────────────
 
@@ -464,6 +619,8 @@ class CompiladorIDE(QMainWindow):
         self.lbl_archivo.setText("Sin archivo")
         self.tabla_tokens.setRowCount(0)
         self.tabla_errores_lex.setRowCount(0)
+        self.tabla_errores_sint.setRowCount(0)
+        self.arbol_ast.limpiar()
         self.lbl_tokens.setText("Tokens: 0")
         self.lbl_errores.setText("Errores: 0")
         self.status.showMessage("Archivo cerrado", 3000)
@@ -475,7 +632,6 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
 
-    # Paleta oscura global
     from PyQt6.QtGui import QPalette
     palette = QPalette()
     palette.setColor(QPalette.ColorRole.Window,          QColor("#1a1a1a"))
