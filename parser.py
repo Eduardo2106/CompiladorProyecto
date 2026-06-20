@@ -370,14 +370,34 @@ class Parser:
         nodo.agregar(cuerpo)
         return nodo
 
-    # repeticion → do lista_sent while expresion ;
-    #            | do lista_sent until ( expresion ) ;
+    # repeticion → do lista_sent until ( expresion ) ;
+    #            | do lista_sent while expresion ;
+    # NOTA: si dentro del do hay un while(cond){ } ese es una iteracion
+    # anidada, NO el cierre del do. El while de cierre NO lleva { }.
     def _repeticion(self) -> NodoAST:
         tok = self._avanzar()   # consume 'do'
         nodo = NodoAST("Repeticion", "do", tok.linea, tok.columna)
 
         cuerpo = NodoAST("CuerpoDo", "cuerpo")
-        while not self._fin() and not self._es_reservada("while", "until"):
+        while not self._fin():
+            # Condición de salida: 'until' siempre cierra el do
+            if self._es_reservada("until"):
+                break
+            # 'while' cierra el do SOLO si NO va seguido de '(' + expr + ')' + '{'
+            # es decir, si el while tiene bloque { } es una iteracion anidada
+            if self._es_reservada("while"):
+                # lookahead: ¿el while va seguido de expresion y luego '{' ?
+                # Si sí → es iteracion anidada (while normal)
+                # Si no → es el while de cierre del do
+                pos_actual = self._pos
+                # Avanzamos temporalmente para ver si hay '{' después de la expresión
+                # Forma simple: si justo después del while viene '(' es ambiguo,
+                # pero el while de cierre NUNCA lleva '{', así que si encontramos
+                # '{' antes del ';' entonces es iteración anidada.
+                es_anidado = self._while_tiene_bloque()
+                if not es_anidado:
+                    break   # es el while de cierre del do
+                # Si es anidado, lo parseamos como iteración normal
             s = self._sentencia()
             if s:
                 cuerpo.agregar(s)
@@ -401,6 +421,28 @@ class Parser:
 
         self._consumir(TipoToken.PUNTO_COMA, "';'")
         return nodo
+
+    def _while_tiene_bloque(self) -> bool:
+        """
+        Lookahead desde la posición actual (que apunta a 'while'):
+        avanza buscando si hay un '{' antes del próximo ';' al nivel
+        de profundidad 0 de paréntesis.
+        Retorna True si este while es una iteración con bloque { }.
+        """
+        j = self._pos + 1   # saltar el 'while'
+        profundidad_paren = 0
+        while j < len(self._tokens):
+            t = self._tokens[j]
+            if t.tipo == TipoToken.PARENTESIS_A:
+                profundidad_paren += 1
+            elif t.tipo == TipoToken.PARENTESIS_C:
+                profundidad_paren -= 1
+            elif t.tipo == TipoToken.LLAVE_A and profundidad_paren == 0:
+                return True   # encontró '{' → es iteración anidada
+            elif t.tipo == TipoToken.PUNTO_COMA and profundidad_paren == 0:
+                return False  # encontró ';' antes de '{' → es cierre del do
+            j += 1
+        return False
 
     # sent_in → cin id ;
     def _sent_in(self) -> NodoAST:
@@ -457,8 +499,21 @@ class Parser:
                                          tok_cad.linea, tok_cad.columna))
         return nodo
 
-    # expresion → expresion_simple [ rel_op expresion_simple ]
+    # expresion → expr_rel { (&&  || ) expr_rel }
+    # expr_rel  → expresion_simple [ rel_op expresion_simple ]
     def _expresion(self) -> NodoAST:
+        nodo = self._expr_rel()
+        # Soportar && y || encadenados: 4>2 && b>0 || c==1
+        while self._actual().tipo in _LOG_OPS and self._actual().tipo != TipoToken.OP_NOT:
+            tok_op = self._avanzar()
+            nuevo = NodoAST("ExpLogica", tok_op.valor,
+                            tok_op.linea, tok_op.columna)
+            nuevo.agregar(nodo)
+            nuevo.agregar(self._expr_rel())
+            nodo = nuevo
+        return nodo
+
+    def _expr_rel(self) -> NodoAST:
         izq = self._expresion_simple()
         if self._actual().tipo in _REL_OPS:
             tok_op = self._avanzar()

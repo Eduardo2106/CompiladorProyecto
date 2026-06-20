@@ -32,6 +32,7 @@ _COLOR_NODO = {
     "SalidaCout":        "#4FC3F7",
     "Salida":            "#4FC3F7",
     "Expresion":         "#FFB74D",   # naranja
+    "ExpLogica":         "#F48FB1",   # rosa (operadores lógicos && ||)
     "ExpSimple":         "#FFB74D",
     "Termino":           "#FFB74D",
     "Factor":            "#FFB74D",
